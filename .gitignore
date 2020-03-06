@@ -4,3 +4,6 @@
 .Ruserdata
 
 *.Rproj
+*.tsv
+*.gmt
+temp2_explore_annotations.R

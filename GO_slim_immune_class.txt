@@ -1,0 +1,101 @@
+ImmuneClass
+GO:0009719	response to endogenous stimulus
+GO:0009607	response to biotic stimulus
+GO:0009628	response to abiotic stimulus
+GO:0009605	response to external stimulus
+GO:0016032	viral life cycle
+GO:0006950	response to stress
+GO:0006955	immunology, immune response
+GO:0006959	humoral immune response
+GO:0002250	adaptive immune response
+GO:0045087	innate immune response
+GO:0030236	anti-inflammatory response
+GO:0006954	inflammatory response
+GO:0050727	regulation of inflammatory response
+GO:0002676	regulation of chronic inflammatory response
+GO:0002673	regulation of acute inflammatory response
+GO:0030168	platelet activation
+GO:0042829	defense response to pathogen
+GO:0019724	B cell mediated immunity
+GO:0042110	T cell activation
+GO:0042113	B cell activation
+GO:0051132	NK T cell activation
+GO:0000910	cytokinesis
+GO:0001816	cytokine production
+GO:0005125	cytokine activity
+GO:0042089	cytokine biosynthesis
+GO:0042107	cytokine metabolism
+GO:0050663	cytokine secretion
+GO:0030224	monocyte differentiation
+GO:0042117	monocyte activation
+GO:0045655	regulation of monocyte differentiation
+GO:0020012	evasion of host immune response
+GO:0042087	cell-mediated immune response
+GO:0042088	T-helper 1 type immune response
+GO:0042092	T-helper 2 type immune response
+GO:0006959	humoral immune response
+GO:0030098	lymphocyte differentiation
+GO:0046649	lymphocyte activation
+GO:0046651	lymphocyte proliferation
+GO:0045619	regulation of lymphocyte differentiation
+GO:0050670	regulation of lymphocyte proliferation
+GO:0051249	regulation of lymphocyte activation
+GO:0042287	MHC protein binding
+GO:0042288	MHC class I protein binding
+GO:0042289	MHC class II protein binding
+GO:0042590	antigen presentation, exogenous antigen via MHC class I
+GO:0042591	antigen presentation, exogenous antigen via MHC class II
+GO:0042611	MHC protein complex
+GO:0003811	complement activity
+GO:0006956	complement activation
+GO:0006957	complement activation, alternative pathway
+GO:0006958	complement activation, classical pathway
+GO:0007155	cell adhesion
+GO:0006950	stress response
+GO:0016265	death
+GO:0006915	apoptosis
+GO:0006916	anti-apoptosis
+GO:0008625	induction of apoptosis via death domain receptors
+GO:0008627	induction of apoptosis by ionic changes
+GO:0008631	induction of apoptosis by oxidative stress
+GO:0019051	induction of apoptosis in host by virus
+GO:0042981	regulation of apoptosis
+GO:0045767	regulation of anti-apoptosis
+GO:0000165	MAPKKK cascade
+GO:0007242	intracellular signaling cascade
+GO:0007249	I-kappaB kinase/NF-kappaB cascade
+GO:0007254	JNK cascade
+GO:0007259	JAK-STAT cascade
+GO:0014065	phosphoinositide 3-kinase cascade
+GO:0043122	regulation of I-kappaB kinase/NF-kappaB cascade
+GO:0043408	regulation of MAPKKK cascade
+GO:0046328	regulation of JNK cascade
+GO:0046425	regulation of JAK-STAT cascade
+GO:0051403	stress-activated MAPK cascade
+GO:0008493	tetracycline transporter activity
+GO:0015520	tetracycline:hydrogen antiporter activity
+GO:0015904	tetracycline transport
+GO:0005739	mitochondrion
+GO:0006118	electron transport
+GO:0005489	electron transporter activity
+GO:0006120	mitochondrial electron transport, NADH to ubiquinone
+GO:0006121	mitochondrial electron transport, succinate to ubiquinone
+GO:0006119	oxidative phosphorylation
+GO:0005764	lysosome
+GO:0005773	vacuole
+GO:0005768	endosome
+GO:0006909	phagocytosis
+GO:0030260	entry into host cell
+GO:0006897	endocytosis
+GO:0006629	lipid metabolism
+GO:0005975	carbohydrate metabolism
+GO:0019538	protein metabolism
+GO:0042445	hormone metabolism
+GO:0008210	estrogen metabolism
+GO:0009056	catabolism
+GO:0006693	prostaglandin metabolism
+GO:0005179	hormone activity
+GO:0042446	hormone biosynthesis
+GO:0042447	hormone catabolism
+GO:0042562	hormone binding
+GO:0046879	hormone secretion
