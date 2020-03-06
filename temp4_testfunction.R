@@ -47,7 +47,7 @@ test_roastMSigDB <- roastMSigDB(data = input_roast,
 ## Test function roastKEGG ----
 
 test_roastKEGG <- roastKEGG(data = input_roast,
-                            geneIDtype = "ENTREZID",
+                            geneIDtype = "SYMBOL",
                             orgDB = "org.Hs.eg.db",
                             organism = "hsa", # here the syntax should correspond with the KEGG sintax
                             design = sample_idesign_cptac_ccrcc_reduced,

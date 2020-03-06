@@ -2,7 +2,7 @@
 
 
 roastKEGG <- function(data,
-                      geneIDtype = "ENTREZID",
+                      geneIDtype = "SYMBOL",
                       orgDB = "org.Hs.eg.db",
                       organism = "hsa", # here the sintax should correspond with the KEGG sintax
                       design = designMatrix,
@@ -23,55 +23,54 @@ roastKEGG <- function(data,
       
       
       if (geneIDtype != "ENTREZID"){
-            
-            genenames <- data$ID
-            
-            mapentrez <- clusterProfiler::bitr(geneID = genenames,
-                                               fromType = geneIDtype,
-                                               toType = "ENTREZID",
-                                               OrgDb = org.Hs.eg.db) %>% na.omit()
-            
-            names(data) <- c(geneIDtype, names(data)[2:eval(dim(data)[2])])
-            
-            premat1 <- dplyr::left_join(data,
-                                        mapentrez,
-                                        by = geneIDtype)
-            
-            premat2 <- dplyr::select(premat1,
-                                     -geneIDtype) %>%  
-                  dplyr::rename(Name = ENTREZID) %>% 
-                  dplyr::filter(is.na(Name) == FALSE) %>% 
-                  dplyr::distinct() %>% na.omit()
-            
-            genesindata <- premat2$Name
-            
-            premat3 <- dplyr::select(premat2,
-                                     -Name) 
-            
-            matrix1 <- as.matrix(premat3)
+         
+         genenames <- data$ID
+         
+         mapentrez <- clusterProfiler::bitr(geneID = genenames,
+                                            fromType = geneIDtype,
+                                            toType = "ENTREZID",
+                                            OrgDb = org.Hs.eg.db) %>% na.omit()
+         
+         names(data) <- c(geneIDtype, names(data)[2:eval(dim(data)[2])])
+         
+         premat1 <- dplyr::left_join(data,
+                                     mapentrez,
+                                     by = geneIDtype)
+         
+         premat2 <- dplyr::select(premat1,
+                                  -geneIDtype) %>%  
+            dplyr::rename(Name = ENTREZID) %>% 
+            dplyr::filter(is.na(Name) == FALSE) %>% 
+            dplyr::distinct() %>% na.omit()
+         
+         genesindata <- premat2$Name
+         
+         premat3 <- dplyr::select(premat2,
+                                  -Name) 
+         
+         matrix1 <- as.matrix(premat3)
       } else {
-            
-            premat2 <- dplyr::filter(data, is.na(ID) == FALSE) %>% 
-                        dplyr::distinct() %>% na.omit()
-            
-            genesindata <- premat2$ID
-            
-            premat3 <- dplyr::select(premat2,
-                                     -ID) 
-            
-            matrix1 <- as.matrix(premat3)
-            
-      }
-      
+         
+         premat2 <- dplyr::filter(data, is.na(ID) == FALSE) %>% 
+            dplyr::distinct() %>% na.omit()
+         
+         genesindata <- premat2$ID
+         
+         premat3 <- dplyr::select(premat2,
+                                  -ID) 
+         
+         matrix1 <- as.matrix(premat3)
+         
+      }      
       ## Prep index for roast ----
       
       path2entrez <- KEGGREST::keggLink("pathway", organism)
       
       entrezcor <- str_remove_all(names(path2entrez), "^hsa:") %>% 
-                              str_trim()
+         str_trim()
       
       path2entrez <- str_remove_all(path2entrez, "^path:") %>% 
-                        str_trim()
+         str_trim()
       
       names(path2entrez) <- entrezcor
       
@@ -84,7 +83,7 @@ roastKEGG <- function(data,
       
       leindex <- sapply(index, length)
       
-      sublogi1 <- between(lenindex, minSetSize, maxSetSize) 
+      sublogi1 <- between(leindex, minSetSize, maxSetSize) 
       index2 <- index[sublogi1] 
       
       ## Run roast ----

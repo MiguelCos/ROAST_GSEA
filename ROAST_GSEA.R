@@ -322,7 +322,7 @@ roast_out <- roast(y = matrix1,
 ## Define 'function' parameters ----
 
 data =  input_roast
-geneIDtype = "ENTREZID"
+geneIDtype = "SYMBOL"
 orgDB = "org.Hs.eg.db"
 organism = "hsa" # here the sintax should correspond with the KEGG sintax
 design = designMatrix
@@ -404,7 +404,7 @@ index <- limma::ids2indices(gene.sets = list_path2entrez,
 
 leindex <- sapply(index, length)
 
-sublogi1 <- between(lenindex, minSetSize, maxSetSize) 
+sublogi1 <- between(leindex, minSetSize, maxSetSize) 
 index2 <- index[sublogi1] 
 
 ## Run roast ----
