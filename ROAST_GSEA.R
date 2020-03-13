@@ -417,3 +417,41 @@ roast_out <- roast(y = matrix1,
 
 
 return(roast_outfil)
+
+
+### Develop idea of the function for 'automatically' create the design object ----
+
+## REFERENCE
+
+patientfct2 <- factor(sample_datafilsel$ParticipantID)
+
+group2 <- factor(sample_datafilsel$Group, 
+                 levels = c("Normal","Tumor"))
+
+patientfct2
+group2
+
+design2
+
+##
+
+
+paired = TRUE
+BiologicalReplicates = 5
+n_samples = 10
+Conditions = c("Normal","Tumor")
+
+
+
+
+samp <- rep("samp", length(Conditions))
+seqbioreps <- seq(1,BiologicalReplicates)
+
+bioreps <- factor(paste(rep(seqbioreps, each = length(Conditions)), samp, sep = "_"))
+
+invid <- factor(paste(rep(Conditions, times = BiologicalReplicates)),
+                levels = c("Normal","Tumor"))
+
+design <- model.matrix(~bioreps+invid)
+
+design

@@ -10,7 +10,8 @@ roastKEGG <- function(data,
                       minSetSize = 1,
                       maxSetSize = 1000,
                       pvalueCutoff = 0.05) {
-      ## Load required packages ----
+      
+   ## Load required packages ----
       
       require(KEGGREST) || stop("Package KEGGREST is required")
       require(orgDB, character.only = TRUE) || stop(paste("package", orgDb, "is required", sep=" "))
