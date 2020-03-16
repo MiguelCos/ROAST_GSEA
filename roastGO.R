@@ -99,6 +99,9 @@ roastGO <- function(data,
       roast_out2 <- dplyr::filter(roast_out2,
                                   FDR <= pval_threshold)
       
+      genesintermread <- dplyr::filter(genesintermread,
+                                       GOID %in% roast_out2$GOID)
+      
       roastResult <- list(roastOutput = roast_out2,
                           GenesPerTerm = genesintermread)
       

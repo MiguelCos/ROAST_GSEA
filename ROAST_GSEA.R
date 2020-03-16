@@ -434,6 +434,18 @@ names(path2entrez) <- entrezcor
 list_path2entrez <- split(x = names(path2entrez),
                           f = path2entrez)
 
+keggid_to_term <- keggList("pathway","hsa")
+
+keggid <- str_remove_all(names(keggid_to_term), "^path:") %>%
+                   str_trim()
+
+keggterm <- str_remove_all(keggid_to_term, " \\- Homo sapiens \\(human\\)") %>%
+            str_trim()
+
+keggidtoterm_df <- data.frame(KEGGID = keggid,
+                              KEGGTERM = keggterm)
+
+
 index <- limma::ids2indices(gene.sets = list_path2entrez,
                             identifiers = genesindata,
                             remove.empty = TRUE)
@@ -453,15 +465,15 @@ suppressWarnings(
       symb1 <- clusterProfiler::bitr(genesinterm$ENTREZID,
                                      fromType = "ENTREZID",
                                      toType = "SYMBOL",
-                                     OrgDb = org.Hs.eg.db,
+                                     OrgDb = orgDB,
                                      drop = FALSE)
 )
 
 suppressWarnings(
       genesintermread <- left_join(genesinterm, symb1,
                                    by = "ENTREZID") %>% 
-            left_join(., goterm_n_iddf,
-                      by = "GOID")
+            left_join(., keggidtoterm_df,
+                      by = "KEGGID")
 )
 
 ## Run roast ----
@@ -472,9 +484,21 @@ roast_out <- roast(y = matrix1,
                    nrot = n_rotations, 
                    index = index2)
 
+roast_out2 <- dplyr::mutate(roast_out,
+                            KEGGID = row.names(roast_out)) %>% 
+   dplyr::left_join(.,keggidtoterm_df,
+                    by = "KEGGID")
 
-return(roast_outfil)
+roast_out2 <- dplyr::filter(roast_out2,
+                            FDR <= pval_threshold)
 
+genesintermread <- dplyr::filter(genesintermread,
+                                 KEGGID %in% roast_out2$KEGGID)
+
+roastResult <- list(roastOutput = roast_out2,
+                    GenesPerTerm = genesintermread)
+
+return(roastResult)
 
 ### Develop idea of the function for 'automatically' create the design object ----
 
