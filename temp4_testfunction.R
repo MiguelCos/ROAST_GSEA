@@ -28,7 +28,8 @@ test_roastGO <- roastGO(data = input_roast,
                         design = sample_idesign_cptac_ccrcc_reduced,
                         n_rotations = 999,
                         minSetSize = 50,
-                        maxSetSize = 200)
+                        maxSetSize = 200,
+                        pval_threshold = 0.05)
 
 ## Test function roastGO ----
 

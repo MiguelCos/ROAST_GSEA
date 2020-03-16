@@ -87,6 +87,26 @@ roastKEGG <- function(data,
       sublogi1 <- between(leindex, minSetSize, maxSetSize) 
       index2 <- index[sublogi1] 
       
+      genesinterm <- qdapTools::list2df(index2,
+                                        col1 = "ENTREZID",
+                                        col2 = "KEGGID") %>%
+         dplyr::mutate(ENTREZID = as.character(ENTREZID))
+      
+      suppressWarnings(
+         symb1 <- clusterProfiler::bitr(genesinterm$ENTREZID,
+                                        fromType = "ENTREZID",
+                                        toType = "SYMBOL",
+                                        OrgDb = org.Hs.eg.db,
+                                        drop = FALSE)
+      )
+      
+      suppressWarnings(
+         genesintermread <- left_join(genesinterm, symb1,
+                                      by = "ENTREZID") %>% 
+            left_join(., goterm_n_iddf,
+                      by = "GOID")
+      )
+      
       ## Run roast ----
       
       roast_out <- roast(y = matrix1,

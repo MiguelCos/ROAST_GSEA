@@ -122,6 +122,6 @@ MSstatsToRoast <- function(data,
             } else {stop("Please check your input for the 'Paired' argument")}
             
       } else {
-            stop("Error: check you MSstatsType input!")
+            stop("Error: check your MSstatsType input!")
       }
 } 
