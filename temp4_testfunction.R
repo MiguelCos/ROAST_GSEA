@@ -29,7 +29,15 @@ test_roastGO <- roastGO(data = input_roast,
                         n_rotations = 999,
                         minSetSize = 50,
                         maxSetSize = 200,
-                        pval_threshold = 0.05)
+                        pvalueCutoff = 0.01)
+
+## Test function propChangePlot ----
+
+test_propChangeplot <- propChangePlot(test_roastGO)
+
+## Test function ridgeplotRoast ----
+
+
 
 ## Test function roastGO ----
 

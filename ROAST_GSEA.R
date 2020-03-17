@@ -6,6 +6,7 @@
 library(limma)
 library(reactome.db)
 library(qdapTools)
+library(tidyverse)
 
 ### Load dataset ----
 
@@ -208,7 +209,7 @@ minSetSize <- 50
 maxSetSize <- 150
 
 n_rotations = 999
-pval_threshold = 0.05
+pvalueCutoff = 0.01
 
 ## Run function ----
 
@@ -273,19 +274,135 @@ roast_out <- roast(y = matrix1,
                    nrot = n_rotations, 
                    index = index2)
 
+
 roast_out2 <- dplyr::mutate(roast_out,
-                           GOID = row.names(roast_out)) %>% 
+                            GOID = row.names(roast_out)) %>% 
             dplyr::left_join(.,goterm_n_iddf,
-                             by = "GOID")
+                             by = "GOID") %>% 
+            dplyr::rename(CategoryID = GOID, CategoryTerm = GOTERM)
 
 roast_out2 <- dplyr::filter(roast_out2,
-                           FDR <= pval_threshold)
+                           FDR <= pvalueCutoff)
+
+fdrnterm <- dplyr::select(roast_out2,
+                          CategoryTerm, FDR, NGenes)
+
+limma_out <- lmFit(object = matrix1,
+                   design = designMatrix)
+
+limma_out2 <- eBayes(limma_out)
+
+limma_tab <- topTable(limma_out2, number = dim(matrix1)[1])
+
+log2FCs <- dplyr::mutate(limma_tab,
+                         ENTREZID = row.names(limma_tab)) %>% 
+   dplyr::filter(ENTREZID %in% symb1$ENTREZID) %>% 
+   dplyr::select(log2FC = eval(dim(.)[2]-5),ENTREZID) %>% 
+   dplyr::left_join(., genesintermread, by = "ENTREZID") %>% ## Look for a way to extract the z-score values as they are used by the ROAST algorithm
+   dplyr::select(log2FC, ENTREZID, SYMBOL, CategoryID = GOID, CategoryTerm = GOTERM) %>% 
+   dplyr::left_join(.,fdrnterm, by = "CategoryTerm") %>%
+   dplyr::filter(is.na(FDR) == FALSE)
+
+meanFCTerm <- log2FCs %>% 
+   dplyr::group_by(CategoryID, CategoryTerm) %>% 
+   dplyr::summarise(meanlog2FC = mean(log2FC)) %>% dplyr::ungroup() %>% 
+   dplyr::filter(CategoryID %in% roast_out2$CategoryID) %>% 
+   dplyr::select(-CategoryTerm, CategoryID)
 
 
-roastResult <- list(roastOutput = roast_out2,
-                    GenesPerTerm = genesintermread)
+roast_out3 <- dplyr::left_join(roast_out2,
+                               meanFCTerm,
+                               by = "CategoryID")
+
+
+roastResult <- list(roastOutput = roast_out3,
+                    GenesPerTerm = genesintermread,
+                    log2FCs = log2FCs)
 
 return(roastResult)
+
+## Develop propChangeplot ----
+
+roastOutput = roastResult
+show_n_terms = 25
+
+# propChangeplot: Process the data ----
+
+roastOutput <- roastOutput$roastOutput
+
+toproplot <- dplyr::select(roastOutput,
+                           NGenes, PropDown, PropUp, Direction, CategoryTerm,
+                           FDR) %>%
+               dplyr::top_n(n = show_n_terms,
+                            wt = NGenes) %>%
+            dplyr::mutate(DiffProp = abs(PropUp - PropDown),
+                          PropDown = -PropDown) %>%
+            tidyr::pivot_longer(cols = c(PropDown, PropUp),
+                                names_to = "PropDirection",
+                                values_to = "Proportion") %>%
+            dplyr::group_by(CategoryTerm, NGenes) 
+            
+
+proplot <- ggplot(data = toproplot,
+                  aes(x=fct_reorder(CategoryTerm, Proportion), y=Proportion))+
+         coord_flip() +
+         geom_line(aes(group = CategoryTerm))+
+         geom_hline(yintercept = 0, color = "red")+
+         #and the oints
+         geom_point(aes(color=FDR, size = NGenes))+
+         geom_text(data = dplyr::filter(toproplot, PropDirection == "PropUp"), 
+             aes(label=round(Proportion,2)),
+             hjust = -0.85)+
+         geom_text(data = dplyr::filter(toproplot, PropDirection == "PropDown"), 
+                   aes(label=round(Proportion,2)),
+                   hjust = +1.85)+
+         scale_y_continuous(expand=c(0.2,0), limits=c(-1, 1))+
+         scale_x_discrete(labels = function(x)  str_wrap(x, width = 40))+
+         labs(title = "Proportion of Up- or Down-regulated Proteins by Category", 
+              subtitle= "Positive values = Proportion of up-regulated proteins in category",
+               x="Biological category", y = "Proportion of Proteins")+
+         theme(axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5, size = 10),
+               panel.background = element_blank(),
+               panel.grid.major = element_blank(),
+               panel.border = element_rect(colour = "black", fill=NA, size=1.5),
+               axis.title=element_text(size=10,face="bold"),
+         legend.justification = c(0, 1))
+
+### Develop ridgeplotRoast function ----
+
+roastOutput = roastResult
+show_n_terms = 25
+
+# ridgeplotRoast: Process the data ----
+
+require(ggridges)
+require(ggplot2)
+
+tofil <- roastOutput$roastOutput
+toridge <- roastOutput$log2FCs
+
+
+prep <- dplyr::select(tofil,
+                           NGenes, PropDown, PropUp, Direction, CategoryTerm,
+                           FDR) %>%
+   dplyr::top_n(n = show_n_terms,
+                wt = NGenes) 
+
+datatab <- dplyr::filter(toridge,
+                         CategoryTerm %in% prep$CategoryTerm)
+
+ridges <- ggplot(data = datatab, aes(x = log2FC, y = CategoryTerm, fill = FDR))+
+                  scale_fill_gradient(low = "#477af8", high = "#ff3333", name = "FDR")+
+                  geom_density_ridges()+
+                  xlab("Log2(Fold-change)")+ 
+                  ylab("Biological Category")+
+                  theme(axis.text.x = element_text(angle = 0, hjust = 0.5,size = 10, color = "black"),
+                        panel.background = element_blank(),
+                        panel.grid.major = element_blank(),
+                        panel.border = element_rect(colour = "black", fill=NA, size=1.5),
+                        axis.title=element_text(size=10,face="bold"))
+
+return(ridges)
 
 
 ### Develop roastMSigDB function ----
