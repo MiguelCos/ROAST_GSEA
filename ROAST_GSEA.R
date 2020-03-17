@@ -323,7 +323,9 @@ return(roastResult)
 
 ## Develop propChangeplot ----
 
-roastOutput = roastResult
+test_roastGO
+
+roastOutput = test_roastGO
 show_n_terms = 25
 
 # propChangeplot: Process the data ----
@@ -370,7 +372,9 @@ proplot <- ggplot(data = toproplot,
 
 ### Develop ridgeplotRoast function ----
 
-roastOutput = roastResult
+test_roastGO
+
+roastOutput = test_roastGO
 show_n_terms = 25
 
 # ridgeplotRoast: Process the data ----
@@ -381,15 +385,21 @@ require(ggplot2)
 tofil <- roastOutput$roastOutput
 toridge <- roastOutput$log2FCs
 
-
-prep <- dplyr::select(tofil,
+toproplot <- dplyr::select(roastOutput,
                            NGenes, PropDown, PropUp, Direction, CategoryTerm,
                            FDR) %>%
    dplyr::top_n(n = show_n_terms,
-                wt = NGenes) 
+                wt = NGenes) %>%
+   dplyr::mutate(DiffProp = abs(PropUp - PropDown),
+                 PropDown = -PropDown) %>%
+   tidyr::pivot_longer(cols = c(PropDown, PropUp),
+                       names_to = "PropDirection",
+                       values_to = "Proportion") %>%
+   dplyr::group_by(CategoryTerm, NGenes) 
 
 datatab <- dplyr::filter(toridge,
-                         CategoryTerm %in% prep$CategoryTerm)
+                         CategoryTerm %in% unique(toproplot$CategoryTerm)) %>% 
+            dplyr::arrange(-NGenes)
 
 ridges <- ggplot(data = datatab, aes(x = log2FC, y = CategoryTerm, fill = FDR))+
                   scale_fill_gradient(low = "#477af8", high = "#ff3333", name = "FDR")+

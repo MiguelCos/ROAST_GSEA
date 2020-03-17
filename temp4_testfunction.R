@@ -37,7 +37,7 @@ test_propChangeplot <- propChangePlot(test_roastGO)
 
 ## Test function ridgeplotRoast ----
 
-
+test_ridgeplotRoast <- ridgeplotRoast(test_roastGO)
 
 ## Test function roastGO ----
 
