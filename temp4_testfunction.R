@@ -20,17 +20,25 @@ test_roastReactome <- roastReactome(data = input_roast,
                                     maxSetSize = 200)
 
 ## Test function roastGO ----
-
+source("roastGO.R")
+source("simplifyGO.R")
 test_roastGO <- roastGO(data = input_roast,
                         geneIDtype = "SYMBOL",
-                        ontology = "CC",
+                        ontology = "MF",
                         organism = "org.Hs.eg.db", 
                         design = sample_idesign_cptac_ccrcc_reduced,
                         n_rotations = 999,
-                        minSetSize = 50,
-                        maxSetSize = 200,
+                        minSetSize = 100,
+                        maxSetSize = 500,
                         pvalueCutoff = 0.01)
 
+test_simplifyGO <- simplifyGO(test_roastGO, cutoff = 0.7, by = "PValue")
+
+clprofout <- clusterProfiler::enrichGO(input_roast$ID,
+                                       OrgDb = org.Hs.eg.db,
+                                       keyType = "SYMBOL",
+                                       ont = "MF")
+      
 ## Test function propChangePlot ----
 
 test_propChangeplot <- propChangePlot(test_roastGO)

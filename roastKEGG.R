@@ -9,7 +9,8 @@ roastKEGG <- function(data,
                       n_rotations = 999,
                       minSetSize = 1,
                       maxSetSize = 1000,
-                      pvalueCutoff = 0.05) {
+                      pvalueCutoff = 0.05,
+                      exclusionList = TRUE) {
       
    ## Load required packages ----
       
@@ -66,39 +67,95 @@ roastKEGG <- function(data,
       
       ## Prep index for roast ----
       
-      path2entrez <- KEGGREST::keggLink("pathway", organism)
-      
-      entrezcor <- str_remove_all(names(path2entrez), "^hsa:") %>% 
-         str_trim()
-      
-      path2entrez <- str_remove_all(path2entrez, "^path:") %>% 
-         str_trim()
-      
-      names(path2entrez) <- entrezcor
-      
-      list_path2entrez <- split(x = names(path2entrez),
-                                f = path2entrez)
-      
-      keggid_to_term <- keggList("pathway","hsa")
+      keggid_to_term <- keggList("pathway", organism)
       
       keggid <- str_remove_all(names(keggid_to_term), "^path:") %>%
          str_trim()
       
-      keggterm <- str_remove_all(keggid_to_term, " \\- Homo sapiens \\(human\\)") %>%
+      keggterm <- str_remove_all(keggid_to_term, "\\ \\-.*") %>%
          str_trim()
       
       keggidtoterm_df <- data.frame(KEGGID = keggid,
                                     KEGGTERM = keggterm)
       
+      if (exclusionList == TRUE){
+         getClass <- function(pathway){
+            qery <- KEGGREST::keggGet(pathway)
+            
+            class <- qery[[1]]$CLASS
+            
+            return(class)
+         }
+         
+         pathclss <- sapply(keggid, getClass)
+         
+         pathclss <- qdapTools::list2df(pathclss,
+                                        col1 = "Class",
+                                        col2 = "PathwayID") %>% 
+            tidyr::separate(col = Class, into = c("Class", "Subclass"), sep = "; ")
+         
+         
+         exclusion_subclass <- c("Drug resistance: antineoplastic",
+                                 "Endocrine system", "Aging",
+                                 "Circulatory system", "Xenobiotics biodegradation and metabolism",
+                                 "Drug resistance: antineoplastic", "Nervous system", "Sensory system",
+                                 "Excretory system", "Digestive system")
+         
+         exclusion_class <- c("Human Diseases")
+         
+         aftrexclud <- dplyr::filter(pathclss,
+                                     !Subclass %in% exclusion_subclass,
+                                     !Class %in% exclusion_class)
+         
+         keggid <- subset(keggid, keggid %in% aftrexclud$PathwayID)
+         
+         keggidtoterm_df <- dplyr::filter(keggidtoterm_df,
+                                          KEGGID %in% keggid)
+         
+         path2entrez <- KEGGREST::keggLink("pathway", organism)
+         
+         entrezcor <- str_remove_all(names(path2entrez), 
+                                     paste0("^",organism,":")) %>% 
+            str_trim()
+         
+         path2entrez <- str_remove_all(path2entrez, "^path:") %>% 
+            str_trim()
+         
+         names(path2entrez) <- entrezcor
+         
+         path2entrez <- subset(path2entrez, path2entrez %in% keggidtoterm_df$KEGGID)
+         
+         list_path2entrez <- split(x = names(path2entrez),
+                                   f = path2entrez)
+         
+      } else {
+         
+         path2entrez <- KEGGREST::keggLink("pathway", organism)
+         
+         entrezcor <- str_remove_all(names(path2entrez), 
+                                     paste0("^",organism,":")) %>% 
+            str_trim()
+         
+         path2entrez <- str_remove_all(path2entrez, "^path:") %>% 
+            str_trim()
+         
+         names(path2entrez) <- entrezcor
+         
+         path2entrez <- subset(path2entrez, path2entrez %in% keggidtoterm_df$KEGGID)
+         
+         list_path2entrez <- split(x = names(path2entrez),
+                                   f = path2entrez)
+         
+      }
       
-      index <- limma::ids2indices(gene.sets = list_path2entrez,
-                                  identifiers = genesindata,
-                                  remove.empty = TRUE)
-      
-      leindex <- sapply(index, length)
-      
-      sublogi1 <- between(leindex, minSetSize, maxSetSize) 
-      index2 <- index[sublogi1] 
+         index <- limma::ids2indices(gene.sets = list_path2entrez,
+                                     identifiers = genesindata,
+                                     remove.empty = TRUE)
+         
+         leindex <- sapply(index, length)
+         
+         sublogi1 <- between(leindex, minSetSize, maxSetSize) 
+         index2 <- index[sublogi1] 
       
       
       genesinterm <- qdapTools::list2df(index2,
@@ -137,6 +194,8 @@ roastKEGG <- function(data,
       roast_out2 <- dplyr::filter(roast_out2,
                                   FDR <= pval_threshold)
       
+      ## Process output ----
+      
       genesintermread <- dplyr::filter(genesintermread,
                                        KEGGID %in% roast_out2$KEGGID)
       
@@ -144,8 +203,11 @@ roastKEGG <- function(data,
       roastResult <- list(roastOutput = roast_out2,
                           GenesPerTerm = genesintermread)
       
+      if(exclusionList == TRUE){
+         message("KEGG pathways associated with the next category classes were excluded from the analysis:",
+                 exclusion_class,"; ",paste(exclusion_subclass, sep = " ", collapse = "; "))
+      }
+      
       return(roastResult)
-      
-      
       
 }

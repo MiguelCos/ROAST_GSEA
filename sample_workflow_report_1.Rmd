@@ -1,0 +1,210 @@
+---
+title: 'enrichRoast ''package'': Sample workflow 1'
+author: "Miguel Cosenza"
+date: "3/18/2020"
+output: html_document
+---
+# Sample workflow to run limma::roast from MS-proteomics data  
+
+### Data set: GBM_CC310-333
+
+## Required packages  
+
+```{r message=FALSE, warning=FALSE}
+library(MSstatsTMT)
+library(tidyverse)
+```
+
+```{r}
+source("ridgleplotRoast.R")
+source("MSstatstoRoast.R")
+source("roastGO.R")
+source("propChangePlot.R")
+```
+
+
+
+## Pre-processing and normalization with MSstatsTMT  
+
+### Starting with the same data/files required by MSstatsTMT:
+
+```{r}
+# Load data ----
+evidence  <- read.delim(file = here::here("Test_data/GBM_data/evidence_top_3pept_PIFfilter_0.75.txt"),
+                          sep = "\t",
+                          stringsAsFactors = FALSE)
+
+protgroups <- read.delim(file = here::here("Test_data/GBM_data/proteinGroups.txt"),
+                           sep = "\t",
+                           stringsAsFactors = FALSE)
+
+annotation <- read.delim(file = here::here("Test_data/GBM_data/annotation_w_paired_design.tsv"),
+                         sep = "\t",
+                         stringsAsFactors = FALSE)
+```
+
+
+### Reformat from MaxQuant to MSstatsTMT:
+
+```{r}
+tmt_format <- MaxQtoMSstatsTMTFormat(evidence, 
+                                     protgroups, 
+                                     annotation, 
+                                     rmProt_Only.identified.by.site = TRUE, 
+                                     useUniquePeptide = TRUE, 
+                                     which.proteinid="Leading.razor.protein")  
+```
+
+### Protein summarization and normalization (MSstatsTMT):
+
+```{r}
+## Protein summarization and normalization
+if (file.exists(here::here("Test_data/GBM_data/summarized_GBMdata.Rda")) == TRUE){
+      load(file = here::here("Test_data/GBM_data/summarized_GBMdata.Rda"))
+} else {
+
+proteins_msstats <- proteinSummarization(tmt_format, 
+                                                method = "msstats", 
+                                                global_norm = TRUE,
+                                                reference_norm = TRUE, 
+                                                remove_norm_channel = TRUE, 
+                                                remove_empty_channel = TRUE, 
+                                                MBimpute = TRUE,
+                                                maxQuantileforCensored = NULL)
+
+## Filtering-out of non-interesting features/proteins 
+proteins_msstats <- filter(proteins_msstats,
+                           str_detect(Protein, "Biognosys_pep") == FALSE,
+                           str_detect(Protein, "^REV_") == FALSE,
+                           str_detect(Protein, "^CON_") == FALSE)
+
+save(proteins_msstats,
+     file = here::here("Test_data/GBM_data/summarized_GBMdata.Rda"))
+}
+```
+
+## Prep MSstats data to ROAST (`MSstatsToRoast` function)
+
+```{r}
+datatoroast <- MSstatsToRoast(proteins_msstats,
+                           MSstatsAnnotation = annotation,
+                           MSstatsType = "MSstatsTMT", # "MSstats" or "MSsstatsTMT"
+                           Paired = TRUE, # if paired design, set to TRUE
+                           Conditions = c("prim", "rec")) # a character vector of two elements corresponding to the same experimental conditions of your setting in MSstats 
+```
+
+
+### Exploring output of MSstatsToRoast:  
+
+The function produces a list with two elements:  
+
+* The summarized and normalized data from MSstatsTMT in wide format, with Protein IDs in the first column and each other column representing a experimental replicate with protein expression values.  
+* The __design__ object as required by ROAST as an input.  
+
+#### Checking the wide tabular data:  
+```{r}
+knitr::kable(head(datatoroast$tabular_data)[,1:8])
+```
+
+First column coded as `ID` and has UniProt IDs. Every other column was re-coded based on the annotation file to reflect the experimental sample to which it corresponds.  
+
+#### Checking the design file/object:  
+```{r}
+head(datatoroast$design)
+
+dim(datatoroast$design)
+```
+
+It has 22 rows corresponding to 22 experimental samples (i.e. biological replicates). The last column define the comparisons based on paired design. Its purpose is not to be human-readable, but to act as an input for the `roast` algorithm.  
+
+The function `MSstatsToRoast` is making it easier to both transform the data into the required wide format and to create the `design` file from the alrealy existent `annotation` file that we usually prepare for our `MSstatsTMT` analysis. 
+
+## Execute your ROAST enrichment based on your desired database:
+
+There will be 4 functions available to run `limma::roast` against different annotation databases:  
+
+* `roastGO`: for running roast against Gene Ontology. It will be possible to select which ontology to explore.  
+* `roastReactome`: For enrichment against the Reactome data base.
+* `roastKEGG`: For enrichment against KEGG.
+* `roastMSigDB`: For enrichment against the Molecuar Signature data base from the broad institute. Using this one it will be possible to explore more specific biological categories such as "NABA" for ECM proteins, for example. 
+
+All functions will have: 
+
+1. a p-value cutoff that the user can define to decide which enriched categories will be showed as 'significantly' enriched; 
+2. The possibility to select the size of the category to be evaluated for enrichment and 
+3. The orgnanism Bioconductor database need to be used to run the analysis. 
+
+### Example: Running `roastGO`:
+```{r}
+roastGO_GBM1 <- roastGO(data = datatoroast$tabular_data, # input as produced by the MsstatsToRoast function
+                        geneIDtype = "UNIPROT", # The ID type of your input.
+                        ontology = "MF", # which GO ontology to explore
+                        organism = "org.Hs.eg.db", # which organism data base.
+                        design = datatoroast$design, # desing object as produced by MSstatsToRoast
+                        n_rotations = 999,
+                        minSetSize = 50,
+                        maxSetSize = 200,
+                        pvalueCutoff = 1) # Set to 1 to get every category tested
+```
+
+
+The function produces a `list` containing three elements:
+
+1. __roastOutput__: The tabular output from roast. 
+
+```{r}
+knitr::kable(head(roastGO_GBM1$roastOutput))
+```
+
+2. __genesPerTerm__: A tabular file indicating which genes were categorized in which biological term.
+
+```{r}
+knitr::kable(head(roastGO_GBM1$GenesPerTerm))
+```
+
+3. __log2FCs__: A tabular file including the log2FC of the comparison between the two evaluated conditions for each gene/protein, and the biological category where it belongs.  
+
+```{r}
+knitr::kable(head(roastGO_GBM1$log2FCs))
+```
+
+### Visualizing ROAST results  
+
+The output of any roast-enrichment function can be then used as an input for two visualization functions: `ridgeplotRoast` and `propChangePlot`. 
+
+The functions accept two arguments: the output produced by any of the roast-enrichemtn functions, and the number of categories that the user want to see. Setting it to `25` (default) will show the top 25 categories with the higher number of identified/quantified proteins in the set.
+
+
+#### Looking at the proportion of Up- or Down-regulated protein per biological category:  
+```{r}
+proportion_plot <- propChangePlot(roastGO_GBM1,
+                                  show_n_terms = 25)
+```
+
+```{r fig.height=5.5, fig.width=10}
+proportion_plot + labs(caption = "GBM_CC310-333 data")
+```
+
+The plot shows the proportion of proteins that can be considered as up-regulated (positive) or down-regulated (negative) within each category. If a higher section of the line is by the right of the vertical red line, it indicates that most proteins within that particular category are up-regulated. The size of the balls indicate the number of proteins quantified within a pathway and the color-coding shows the FDR of the roast enrichment. If
+
+#### Looking at ridgeline density plots for log2FC distributions by biological category:  
+```{r}
+ridgeroast <- ridgeplotRoast(roastGO_GBM1,
+                                  show_n_terms = 25)
+```
+
+```{r fig.height=5.5, fig.width=10}
+ridgeroast + labs(caption = "GBM_CC310-333 data")
+```
+
+## Next steps  
+
+* Create a function for the simplification of terms and the exclusion of non-interesting ones: The idea is that this function can take the results of any roastEnrichment functions and run these 'simplifications' after the initial enrichment analysis was executed.  
+
+      * This function should also be able to take a 'blacklist' as input, to take out non-interesting terms. The currect structure of the output and the functions allow to do this in a more straigthfoward manner, compared to the initial script. 
+
+* Improve the visualization options: It shoukd be possible for the user to visualize the top_n enriched terms by 1. Number of genes, 2. FDR corrected p-values, 3. p-values, 4. The Delta for the proportion of positively regulated genes - negatively regulated genes per category.  
+
+* Create a stand-alone script to produce an HTML report directly from an R Markdown file (`.Rmd`) that will execute the analyses as requested by the user, after the modifications of parameters in the first lines of the script. 
+
+* Deploy it as a package in Github so other people in the lab can start using it.
