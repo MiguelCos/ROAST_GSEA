@@ -1,11 +1,10 @@
-### roastKEGG function ----  
+### roast function ----  
 
-
-roastKEGG <- function(data,
+roast <- function(data,
                       geneIDtype = "SYMBOL",
                       orgDB = "org.Hs.eg.db",
-                      organism = "hsa", # here the sintax should correspond with the KEGG sintax
-                      design = designMatrix,
+                      organism = "hsa", # here the sintax should correspond with the  sintax
+                      design,
                       n_rotations = 999,
                       minSetSize = 1,
                       maxSetSize = 1000,
@@ -14,7 +13,7 @@ roastKEGG <- function(data,
       
    ## Load required packages ----
       
-      require(KEGGREST) || stop("Package KEGGREST is required")
+      require(KEGGREST) || stop("Package REST is required")
       require(orgDB, character.only = TRUE) || stop(paste("package", orgDb, "is required", sep=" "))
       require(limma) || stop("Package limma is required")
       suppressMessages(require(clusterProfiler)) || stop("Package clusterProfiler is required")
@@ -28,22 +27,28 @@ roastKEGG <- function(data,
          
          genenames <- data$ID
          
+         suppressMessages(suppressWarnings(
          mapentrez <- clusterProfiler::bitr(geneID = genenames,
                                             fromType = geneIDtype,
                                             toType = "ENTREZID",
-                                            OrgDb = org.Hs.eg.db) %>% na.omit()
+                                            OrgDb = eval(as.name(orgDB))) %>% na.omit()
+         ))
          
          names(data) <- c(geneIDtype, names(data)[2:eval(dim(data)[2])])
          
+         suppressMessages(suppressWarnings(
          premat1 <- dplyr::left_join(data,
                                      mapentrez,
                                      by = geneIDtype)
+         ))
          
+         suppressMessages(suppressWarnings(
          premat2 <- dplyr::select(premat1,
-                                  -geneIDtype) %>%  
+                                  -all_of(geneIDtype)) %>%  
             dplyr::rename(Name = ENTREZID) %>% 
             dplyr::filter(is.na(Name) == FALSE) %>% 
             dplyr::distinct() %>% na.omit()
+         ))
          
          genesindata <- premat2$Name
          
@@ -51,6 +56,9 @@ roastKEGG <- function(data,
                                   -Name) 
          
          matrix1 <- as.matrix(premat3)
+         
+         row.names(matrix1) <- genesindata
+         
       } else {
          
          premat2 <- dplyr::filter(data, is.na(ID) == FALSE) %>% 
@@ -62,6 +70,8 @@ roastKEGG <- function(data,
                                   -ID) 
          
          matrix1 <- as.matrix(premat3)
+         
+         row.names(matrix1) <- genesindata
          
       }    
       
@@ -156,55 +166,118 @@ roastKEGG <- function(data,
          
          sublogi1 <- between(leindex, minSetSize, maxSetSize) 
          index2 <- index[sublogi1] 
+         
+         index2id <- tibble(index = seq_along(genesindata),
+                            ID = genesindata)
+         
+         genesinterm <- qdapTools::list2df(index2,
+                                           col1 = "index",
+                                           col2 = "KEGGID") %>% 
+            left_join(., index2id, by = "index") %>% 
+            dplyr::select(-index)
+         
       
       
-      genesinterm <- qdapTools::list2df(index2,
-                                        col1 = "ENTREZID",
-                                        col2 = "KEGGID") %>%
-         dplyr::mutate(ENTREZID = as.character(ENTREZID))
-      
-      suppressWarnings(
-         symb1 <- clusterProfiler::bitr(genesinterm$ENTREZID,
-                                        fromType = "ENTREZID",
-                                        toType = "SYMBOL",
-                                        OrgDb = orgDB,
-                                        drop = FALSE)
-      )
-      
-      suppressWarnings(
-         genesintermread <- left_join(genesinterm, symb1,
-                                      by = "ENTREZID") %>% 
-            left_join(., keggidtoterm_df,
-                      by = "KEGGID")
-      )
+         if(geneIDtype != "SYMBOL"){
+            
+            suppressWarnings(
+               suppressMessages(
+                  symb1 <- clusterProfiler::bitr(genesinterm$ID,
+                                                 fromType = geneIDtype,
+                                                 toType = "SYMBOL",
+                                                 OrgDb = eval(as.name(organism)),
+                                                 drop = FALSE)
+               ))
+            
+            suppressWarnings(
+               suppressMessages(
+                  genesinterm <- left_join(genesinterm, symb1,
+                                           by = "ENTREZID") %>% 
+                     left_join(., keggidtoterm_df,
+                               by = "KEGGID")
+               ))
+         }
       
       ## Run roast ----
       
-      roast_out <- roast(y = matrix1,
-                         contrast= ncol(designMatrix),
-                         design = designMatrix, 
+      roast_out <- fry(y = matrix1,
+                         contrast= ncol(design),
+                         design = design, 
                          nrot = n_rotations, 
                          index = index2)
       
+      
+      ## Process output ----
+         suppressWarnings(suppressMessages(
       roast_out2 <- dplyr::mutate(roast_out,
                                   KEGGID = row.names(roast_out)) %>% 
          dplyr::left_join(.,keggidtoterm_df,
-                          by = "KEGGID")
+                          by = "KEGGID") %>% 
+         dplyr::rename(CategoryID = KEGGID, CategoryTerm = KEGGTERM)
+         ))
       
       roast_out2 <- dplyr::filter(roast_out2,
-                                  FDR <= pval_threshold)
+                                  FDR <= pvalueCutoff)
       
-      ## Process output ----
+      fdrnterm <- dplyr::select(roast_out2,
+                                CategoryTerm, FDR, NGenes)
       
-      genesintermread <- dplyr::filter(genesintermread,
-                                       KEGGID %in% roast_out2$KEGGID)
+      genesinterm <- dplyr::filter(genesinterm,
+                                       KEGGID %in% roast_out2$CategoryID)
       
       
-      roastResult <- list(roastOutput = roast_out2,
-                          GenesPerTerm = genesintermread)
+      # Run limma to get log2FC values per protein and category ----
+      
+         suppressWarnings(suppressMessages(
+      limma_out <- lmFit(object = matrix1,
+                               design = design)
+         ))
+      
+      limma_out2 <- eBayes(limma_out)
+      
+      suppressWarnings(
+         suppressMessages(
+            limma_tab <- topTable(limma_out2, number = dim(matrix1)[1])
+         ))
+      
+      # Get log2FC information from Limma and reformat output ----
+      
+      suppressWarnings(
+         suppressMessages(
+            log2FCs <- dplyr::mutate(limma_tab,
+                                     ID = row.names(limma_tab)) %>%  
+               dplyr::select(ID, log2FC = eval(dim(.)[2]-5)) %>% 
+               dplyr::left_join(., genesinterm, by = "ID")  %>%
+               dplyr::left_join(., keggidtoterm_df, by = "KEGGID") %>%
+               dplyr::rename(CategoryID = KEGGID, CategoryTerm = KEGGTERM) %>%
+               dplyr::left_join(.,fdrnterm, by = "CategoryTerm") %>%
+               dplyr::filter(is.na(FDR) == FALSE)
+         ))
+      
+      suppressWarnings(suppressMessages(
+         
+         meanFCTerm <- log2FCs %>% 
+            dplyr::group_by(CategoryID, CategoryTerm) %>% 
+            dplyr::summarise(meanlog2FC = mean(log2FC)) %>% dplyr::ungroup() %>% 
+            dplyr::filter(CategoryID %in% roast_out2$CategoryID) %>% 
+            dplyr::select(-CategoryTerm, CategoryID)
+      ))
+      
+      suppressWarnings(
+         suppressMessages(
+            roast_out3 <- dplyr::left_join(roast_out2,
+                                           meanFCTerm,
+                                           by = "CategoryID")
+         ))
+      
+      
+      
+      roastResult <- list(roastOutput = roast_out3,
+                          GenesPerTerm = genesinterm,
+                          log2FCs = log2FCs)
       
       if(exclusionList == TRUE){
-         message("KEGG pathways associated with the next category classes were excluded from the analysis:",
+         message(" pathways associated with the next category classes were excluded from the analysis:",
                  exclusion_class,"; ",paste(exclusion_subclass, sep = " ", collapse = "; "))
       }
       

@@ -1,4 +1,13 @@
 ## roastGO function ----
+data = input_roast
+geneIDtype = "SYMBOL"
+ontology = "MF"
+organism = "org.Hs.eg.db"
+design = sample_idesign_cptac_ccrcc_reduced
+n_rotations = 9999
+minSetSize = 10
+maxSetSize = 250
+pvalueCutoff = 0.05
 
 roastGO <- function(data,
                     geneIDtype = "SYMBOL",
@@ -29,6 +38,8 @@ roastGO <- function(data,
    
    matrix1 <- as.matrix(premat3)
    
+   row.names(matrix1) <- genesindata
+   
    ## Prep index for roast ----
    
       suppressWarnings(
@@ -51,47 +62,55 @@ roastGO <- function(data,
    
    
    golist <- suppressMessages(
-      AnnotationDbi::mapIds(org.Hs.eg.db, keys=names(gos_to_test), 
+      AnnotationDbi::mapIds(eval(as.name(organism)), keys=names(gos_to_test), 
                             column=geneIDtype,
                             keytype="GOALL", multiVals='list'))
    
    index <- limma::ids2indices(gene.sets = golist,
                                identifiers = genesindata,
-                               remove.empty = TRUE) 
+                               remove.empty = TRUE)
    
    lenindex <- sapply(index, length)
    
    sublogi1 <- between(lenindex, minSetSize, maxSetSize) 
    index2 <- index[sublogi1]  
    
+   index2id <- tibble(index = seq_along(genesindata),
+                      ID = genesindata)
+   
    genesinterm <- qdapTools::list2df(index2,
-                                     col1 = "ENTREZID",
-                                     col2 = "GOID") %>%
-      dplyr::mutate(ENTREZID = as.character(ENTREZID))
+                                     col1 = "index",
+                                     col2 = "GOID") %>% 
+                  left_join(., index2id, by = "index") %>% 
+                  dplyr::select(-index)
+   
+   
+   if(geneIDtype != "SYMBOL"){
    
    suppressWarnings(
    suppressMessages(
-   symb1 <- clusterProfiler::bitr(genesinterm$ENTREZID,
-                                  fromType = "ENTREZID",
+   symb1 <- clusterProfiler::bitr(genesinterm$ID,
+                                  fromType = geneIDtype,
                                   toType = "SYMBOL",
-                                  OrgDb = org.Hs.eg.db,
+                                  OrgDb = eval(as.name(organism)),
                                   drop = FALSE)
    ))
    
    suppressWarnings(
       suppressMessages(
-   genesintermread <- left_join(genesinterm, symb1,
+   genesinterm <- left_join(genesinterm, symb1,
                                 by = "ENTREZID") %>% 
       left_join(., goterm_n_iddf,
                 by = "GOID")
       ))
+   }
    # Run ROAST ----
    
-   roast_out <- roast(y = matrix1,
-                      contrast= ncol(design),
-                      design = design, 
-                      nrot = n_rotations, 
-                      index = index2)
+   roast_out <- fry(y = matrix1,
+                    contrast= ncol(design),
+                    design = design, 
+                    nrot = n_rotations, 
+                    index = index2)
    
    # Process ROAST output ----
    suppressWarnings(
@@ -107,8 +126,15 @@ roastGO <- function(data,
    roast_out2 <- dplyr::filter(roast_out2,
                                FDR <= pvalueCutoff)
    
+   
    fdrnterm <- dplyr::select(roast_out2,
                              CategoryTerm, FDR, NGenes)
+   
+   genesinterm <- dplyr::filter(genesinterm,
+                                GOID %in% roast_out2$CategoryID)
+   
+   # Run limma to get log2FC values per protein and category ----
+   
    suppressWarnings(
       suppressMessages(
    limma_out <- lmFit(object = matrix1,
@@ -122,20 +148,22 @@ roastGO <- function(data,
    limma_tab <- topTable(limma_out2, number = dim(matrix1)[1])
       ))
    
+   # Get log2FC information from Limma and reformat output ----
+   
    suppressWarnings(
       suppressMessages(
    log2FCs <- dplyr::mutate(limma_tab,
-                            ENTREZID = row.names(limma_tab)) %>% 
-      dplyr::filter(ENTREZID %in% symb1$ENTREZID) %>% 
-      dplyr::select(log2FC = eval(dim(.)[2]-5),ENTREZID) %>% 
-      dplyr::left_join(., genesintermread, by = "ENTREZID") %>% ## Look for a way to extract the z-score values as they are used by the ROAST algorithm
-      dplyr::select(log2FC, ENTREZID, SYMBOL, CategoryID = GOID, CategoryTerm = GOTERM) %>% 
+                            ID = row.names(limma_tab)) %>%  
+      dplyr::select(ID, log2FC = eval(dim(.)[2]-5)) %>% 
+      dplyr::left_join(., genesinterm, by = "ID")  %>%
+      dplyr::left_join(., goterm_n_iddf, by = "GOID") %>%
+      dplyr::rename(CategoryID = GOID, CategoryTerm = GOTERM) %>%
       dplyr::left_join(.,fdrnterm, by = "CategoryTerm") %>%
       dplyr::filter(is.na(FDR) == FALSE)
       ))
    
-   suppressWarnings(
-      suppressMessages(
+   suppressWarnings(suppressMessages(
+      
    meanFCTerm <- log2FCs %>% 
       dplyr::group_by(CategoryID, CategoryTerm) %>% 
       dplyr::summarise(meanlog2FC = mean(log2FC)) %>% dplyr::ungroup() %>% 
@@ -152,7 +180,7 @@ roastGO <- function(data,
    
    
    roastResult <- list(roastOutput = roast_out3,
-                       GenesPerTerm = genesintermread,
+                       GenesPerTerm = genesinterm,
                        log2FCs = log2FCs,
                        ontology = ontology,
                        organism = organism)
