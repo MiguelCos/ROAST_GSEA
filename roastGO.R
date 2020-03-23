@@ -1,18 +1,9 @@
 ## roastGO function ----
-data = input_roast
-geneIDtype = "SYMBOL"
-ontology = "MF"
-organism = "org.Hs.eg.db"
-design = sample_idesign_cptac_ccrcc_reduced
-n_rotations = 9999
-minSetSize = 10
-maxSetSize = 250
-pvalueCutoff = 0.05
 
 roastGO <- function(data,
                     geneIDtype = "SYMBOL",
                     ontology = "MF",
-                    organism = "org.Hs.eg.db", 
+                    orgDB = "org.Hs.eg.db", 
                     design,
                     n_rotations = 9999,
                     minSetSize = 1,

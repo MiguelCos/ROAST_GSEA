@@ -1,6 +1,7 @@
 ## roastMSigDB function ----
 
 roastMSigDB <- function(data,
+                        orgDB = "org.Hs.eg.db",
                         geneIDtype = "gene_symbol", # this can be "gene_symbol" or "entrez_gene"
                         organism = "Homo sapiens", # this can be any resulting from calling msigdbr::msigdbr_show_species()
                         category = "H", # Any of the main categories presented here: https://www.gsea-msigdb.org/gsea/msigdb/genesets.jsp

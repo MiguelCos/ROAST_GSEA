@@ -1,7 +1,7 @@
 ### ROAST - Reactome function ----
 
 roastReactome <- function(data, geneIDtype = "SYMBOL", 
-                          organism = "org.Hs.eg.db", 
+                          orgDB = "org.Hs.eg.db", 
                           design,
                           n_rotations = 9999,
                           minSetSize = 1,

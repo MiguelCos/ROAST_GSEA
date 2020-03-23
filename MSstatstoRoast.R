@@ -9,7 +9,8 @@ MSstatsToRoast <- function(data,
                            ) {
       
       if (MSstatsType == "MSstats"){
-            
+      require("MSstats")
+         
             if (Paired == FALSE){
                   annot1 <- MSstatsAnnotation %>% 
                         dplyr::mutate(Condition = factor(Condition,
@@ -45,7 +46,8 @@ MSstatsToRoast <- function(data,
             } else {stop("Sorry, paired design is not available for Label-free data...")}
             
       } else if(MSstatsType == "MSstatsTMT"){
-            
+         require("MSstatsTMT")
+         
             if (Paired == FALSE) {
                   
                   annot1 <- dplyr::filter(MSstatsAnnotation,
