@@ -1,5 +1,17 @@
 ### ROAST - Reactome function ----
 
+data = input_roast
+geneIDtype = "SYMBOL"
+organism = "org.Hs.eg.db"
+species = "Homo sapiens"
+design = sample_idesign_cptac_ccrcc_reduced
+n_rotations = 999
+minSetSize = 15
+maxSetSize = 250
+pvalueCutoff = 0.05
+exclusionList = TRUE
+
+
 roastReactome <- function(data, geneIDtype = "SYMBOL", 
                           organism = "org.Hs.eg.db", 
                           design,
@@ -19,31 +31,57 @@ roastReactome <- function(data, geneIDtype = "SYMBOL",
    
    ## Generate matrix to roast ----
    
-   genenames <- data$ID
-   
-   mapentrez <- clusterProfiler::bitr(geneID = genenames,
-                                      fromType = geneIDtype,
-                                      toType = "ENTREZID",
-                                      OrgDb = org.Hs.eg.db) %>% na.omit()
-   
-   names(data) <- c(geneIDtype, names(data)[2:eval(dim(data)[2])])
-   
-   premat1 <- dplyr::left_join(data,
-                               mapentrez,
-                               by = geneIDtype)
-   
-   premat2 <- dplyr::select(premat1,
-                            -geneIDtype) %>%  
-              dplyr::rename(Name = ENTREZID) %>% 
-              dplyr::filter(is.na(Name) == FALSE) %>% 
-              dplyr::distinct() %>% na.omit()
-   
-   genesindata <- premat2$Name
-   
-   premat3 <- dplyr::select(premat2,
-                            -Name) 
-   
-   matrix1 <- as.matrix(premat3)
+   if (geneIDtype != "ENTREZID"){
+      
+      genenames <- data$ID
+      
+      suppressMessages(suppressWarnings(
+         mapentrez <- clusterProfiler::bitr(geneID = genenames,
+                                            fromType = geneIDtype,
+                                            toType = "ENTREZID",
+                                            OrgDb = eval(as.name(organism))) %>% na.omit()
+      ))
+      
+      names(data) <- c(geneIDtype, names(data)[2:eval(dim(data)[2])])
+      
+      suppressMessages(suppressWarnings(
+         premat1 <- dplyr::left_join(data,
+                                     mapentrez,
+                                     by = geneIDtype)
+      ))
+      
+      suppressMessages(suppressWarnings(
+         premat2 <- dplyr::select(premat1,
+                                  -all_of(geneIDtype)) %>%  
+            dplyr::rename(Name = ENTREZID) %>% 
+            dplyr::filter(is.na(Name) == FALSE) %>% 
+            dplyr::distinct() %>% na.omit()
+      ))
+      
+      genesindata <- premat2$Name
+      
+      premat3 <- dplyr::select(premat2,
+                               -Name) 
+      
+      matrix1 <- as.matrix(premat3)
+      
+      row.names(matrix1) <- genesindata
+      
+   } else {
+      
+      premat2 <- dplyr::filter(data, is.na(ID) == FALSE) %>% 
+         dplyr::distinct() %>% na.omit()
+      
+      genesindata <- premat2$ID
+      
+      premat3 <- dplyr::select(premat2,
+                               -ID) 
+      
+      matrix1 <- as.matrix(premat3)
+      
+      row.names(matrix1) <- genesindata
+      
+   }    
    
    ## Prep index for roast ----
    
@@ -99,7 +137,10 @@ roastReactome <- function(data, geneIDtype = "SYMBOL",
       sublogi1 <- between(lenindex, minSetSize, maxSetSize) 
       index2 <- index[sublogi1]  
       
-      pathterm_n_iddf <- toexclude %>% dplyr::filter(str_detect(PATHNAME, species)) %>% 
+      index2id <- tibble(index = seq_along(genesindata),
+                         ID = genesindata)
+      
+      pathterm_n_iddf <- toexclude %>% dplyr::filter(str_detect(PATHNAME, species)) #%>% 
                            dplyr::mutate(PATHNAME = str_remove(PATHNAME, ".*: "))
       
       
@@ -114,7 +155,10 @@ roastReactome <- function(data, geneIDtype = "SYMBOL",
       lenindex <- sapply(index, length)
    
       sublogi1 <- between(lenindex, minSetSize, maxSetSize) 
-      index2 <- index[sublogi1]  
+      index2 <- index[sublogi1]
+      
+      index2id <- tibble(index = seq_along(genesindata),
+                         ID = genesindata)
       
       pathterm_n_iddf <- toexclude %>% dplyr::filter(str_detect(PATHNAME, species)) %>% 
                            dplyr::mutate(PATHNAME = str_remove(PATHNAME, ".*: "))
@@ -122,9 +166,12 @@ roastReactome <- function(data, geneIDtype = "SYMBOL",
    }
    
    genesinterm <- qdapTools::list2df(index2,
-                                     col1 = "ENTREZID",
-                                     col2 = "PATHID") %>%
-                  dplyr::mutate(ENTREZID = as.character(ENTREZID))
+                                     col1 = "index",
+                                     col2 = "PATHID") %>% 
+                  dplyr::left_join(., index2id, by = "index") %>% 
+                  dplyr::select(-index) %>% 
+                  rename(ENTREZID = ID)
+   
    
    
    suppressWarnings(suppressMessages(
@@ -217,7 +264,8 @@ roastReactome <- function(data, geneIDtype = "SYMBOL",
    
    roastResult <- list(roastOutput = roast_out3,
                        GenesPerTerm = genesintermread,
-                       log2FCs = log2FCs)
+                       log2FCs = log2FCs,
+                       exclusionList = reactome_excluded)
    
    if(exclusionList == TRUE){
       message("Pathways associated with human diseases, disorders and infections where excluded from de analysis")

@@ -99,7 +99,7 @@ roastGO <- function(data,
    suppressWarnings(
       suppressMessages(
    genesinterm <- left_join(genesinterm, symb1,
-                                by = "ENTREZID") %>% 
+                                by = geneIDtype) %>% 
       left_join(., goterm_n_iddf,
                 by = "GOID")
       ))

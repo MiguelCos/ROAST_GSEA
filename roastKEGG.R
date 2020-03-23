@@ -1,4 +1,15 @@
 ### roast function ----  
+data = input_roast
+geneIDtype = "SYMBOL"
+orgDB = "org.Hs.eg.db"
+organism = "hsa" # here the sintax should correspond with the  sintax
+design = sample_idesign_cptac_ccrcc_reduced
+n_rotations = 999
+minSetSize = 20
+maxSetSize = 150
+pvalueCutoff = 0.05
+exclusionList = TRUE
+
 
 roast <- function(data,
                       geneIDtype = "SYMBOL",
@@ -113,6 +124,10 @@ roast <- function(data,
          
          exclusion_class <- c("Human Diseases")
          
+         excluded <- dplyr::filter(pathclss,
+                                   Subclass %in% exclusion_subclass,
+                                   Class %in% exclusion_class)
+         
          aftrexclud <- dplyr::filter(pathclss,
                                      !Subclass %in% exclusion_subclass,
                                      !Class %in% exclusion_class)
@@ -174,18 +189,16 @@ roast <- function(data,
                                            col1 = "index",
                                            col2 = "KEGGID") %>% 
             left_join(., index2id, by = "index") %>% 
-            dplyr::select(-index)
+            dplyr::select(-index) %>% 
+            rename(ENTREZID = ID)
          
       
-      
-         if(geneIDtype != "SYMBOL"){
-            
             suppressWarnings(
                suppressMessages(
-                  symb1 <- clusterProfiler::bitr(genesinterm$ID,
-                                                 fromType = geneIDtype,
+                  symb1 <- clusterProfiler::bitr(genesinterm$ENTREZID,
+                                                 fromType = "ENTREZID",
                                                  toType = "SYMBOL",
-                                                 OrgDb = eval(as.name(organism)),
+                                                 OrgDb = eval(as.name(orgDB)),
                                                  drop = FALSE)
                ))
             
@@ -196,7 +209,7 @@ roast <- function(data,
                      left_join(., keggidtoterm_df,
                                by = "KEGGID")
                ))
-         }
+       
       
       ## Run roast ----
       
@@ -245,13 +258,14 @@ roast <- function(data,
       suppressWarnings(
          suppressMessages(
             log2FCs <- dplyr::mutate(limma_tab,
-                                     ID = row.names(limma_tab)) %>%  
-               dplyr::select(ID, log2FC = eval(dim(.)[2]-5)) %>% 
-               dplyr::left_join(., genesinterm, by = "ID")  %>%
-               dplyr::left_join(., keggidtoterm_df, by = "KEGGID") %>%
+                                     ENTREZID = row.names(limma_tab)) %>%  
+               dplyr::select(ENTREZID, log2FC = eval(dim(.)[2]-5)) %>% 
+               dplyr::left_join(., genesinterm, by = "ENTREZID")  %>%
+               dplyr::left_join(., keggidtoterm_df, by = c("KEGGID", "KEGGTERM")) %>%
                dplyr::rename(CategoryID = KEGGID, CategoryTerm = KEGGTERM) %>%
                dplyr::left_join(.,fdrnterm, by = "CategoryTerm") %>%
-               dplyr::filter(is.na(FDR) == FALSE)
+               dplyr::filter(is.na(FDR) == FALSE) %>% 
+               dplyr::select(ENTREZID, SYMBOL, log2FC, CategoryID, CategoryTerm, FDR, NGenes)
          ))
       
       suppressWarnings(suppressMessages(
@@ -274,7 +288,8 @@ roast <- function(data,
       
       roastResult <- list(roastOutput = roast_out3,
                           GenesPerTerm = genesinterm,
-                          log2FCs = log2FCs)
+                          log2FCs = log2FCs,
+                          exclusionList = excluded)
       
       if(exclusionList == TRUE){
          message(" pathways associated with the next category classes were excluded from the analysis:",
