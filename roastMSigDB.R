@@ -1,16 +1,4 @@
 ## roastMSigDB function ----
-data = input_roast
-geneIDtype = "SYMBOL" # this can be "gene_symbol" or "entrez_gene"
-organism = "Homo sapiens" # this can be any resulting from calling msigdbr::msigdbr_show_species()
-orgDB = "org.Hs.eg.db"
-category = "H" # Any of the main categories presented here: https://www.gsea-msigdb.org/gsea/msigdb/genesets.jsp
-subcategory = NULL # Any of the subcategies presented here: https://www.gsea-msigdb.org/gsea/msigdb/genesets.jsp
-specific_category = NULL # (i.e. "NABA" for ECM proteins) A string defining a specific gene set present in the MSigDB but is not separated with its own subcategory, 
-design = sample_idesign_cptac_ccrcc_reduced
-n_rotations = 999
-minSetSize = 15
-maxSetSize = 200
-pvalueCutoff = 0.05
 
 roastMSigDB <- function(data,
                         geneIDtype = "gene_symbol", # this can be "gene_symbol" or "entrez_gene"
@@ -49,10 +37,8 @@ roastMSigDB <- function(data,
                                mapentrez,
                                by = geneIDtype)
       
-      }
-      
       premat2 <- dplyr::filter(data, is.na(ID) == FALSE) %>% 
-            dplyr::distinct() %>% na.omit()
+         dplyr::distinct() %>% na.omit()
       
       genesindata <- premat2$ID
       
@@ -60,6 +46,23 @@ roastMSigDB <- function(data,
                                -ID) 
       
       matrix1 <- as.matrix(premat3)
+      
+      row.names(matrix1) <- genesindata
+      
+      } else {
+         
+         premat2 <- dplyr::filter(data, is.na(ID) == FALSE) %>% 
+            dplyr::distinct() %>% na.omit()
+         
+         genesindata <- premat2$ID
+         
+         premat3 <- dplyr::select(premat2,
+                                  -ID) 
+         
+         matrix1 <- as.matrix(premat3)
+         
+         row.names(matrix1) <- genesindata
+      }
       
       ## Prep index for roast ----
       
@@ -89,11 +92,15 @@ roastMSigDB <- function(data,
       
       sublogi1 <- between(lenindex, minSetSize, maxSetSize) 
       index2 <- index[sublogi1]  
-
+      
+      index2id <- tibble(index = seq_along(genesindata),
+                         ID = genesindata)
+      
       genesinterm <- qdapTools::list2df(index2,
-                                        col1 = "human_gene_symbol",
-                                        col2 = "gs_id") %>%
-                     dplyr::mutate(human_gene_symbol = as.character(human_gene_symbol))
+                                        col1 = "index",
+                                        col2 = "gs_id") %>% 
+         dplyr::left_join(., index2id, by = "index") %>% 
+         dplyr::select(-index) 
       
       ## Run roast ----
       
@@ -120,9 +127,16 @@ roastMSigDB <- function(data,
       fdrnterm <- dplyr::select(roast_out2,
                                 CategoryTerm, FDR, NGenes)
       
-      genesintermread <- dplyr::filter(genesintermread,
-                                       gs_id %in% roast_out2$CategoryID) %>%
-                        dplyr::rename(ID = 3)
+      
+      genesinterm <- dplyr::filter(genesinterm,
+                                    gs_id %in% roast_out2$CategoryID) %>% 
+                     dplyr::rename(ID = 2)
+      
+      suppressWarnings(suppressMessages(
+         genesintermread <-  genesinterm %>% 
+            left_join(., pathterm_n_iddf,
+                      by = "gs_id") %>% dplyr::select(ID, gs_id, gs_name)
+      ))
       
       # Run limma to get log2FC values per protein and category ----
       
@@ -141,20 +155,19 @@ roastMSigDB <- function(data,
       
       # Get log2FC information from Limma and reformat output ----
       
-     # suppressWarnings(
-      #   suppressMessages(
+      suppressWarnings(
+         suppressMessages(
             log2FCs <- dplyr::mutate(limma_tab,
-                                     ID = row.names(limma_tab))  #%>% 
-               dplyr::filter(ID %in% genesintermread$ID)# %>% 
+                                     ID = row.names(limma_tab))  %>% 
+               dplyr::filter(ID %in% genesinterm$ID) %>% 
                dplyr::select(log2FC = eval(dim(.)[2]-5),ID) %>% 
-               dplyr::left_join(., genesintermread, by = "ID") # %>% ## Look for a way to extract the z-score values as they are used by the ROAST algorithm
-               dplyr::select(log2FC, ENTREZID, SYMBOL, CategoryID = PATHID, CategoryTerm = PATHNAME) %>% 
+               dplyr::left_join(., genesintermread, by = "ID")  %>%
+               dplyr::select(ID, log2FC, CategoryID = gs_id, CategoryTerm = gs_name) %>% 
                dplyr::left_join(.,fdrnterm, by = "CategoryTerm") %>%
                dplyr::filter(is.na(FDR) == FALSE)
          ))
       
       suppressWarnings(suppressMessages(
-         
          meanFCTerm <- log2FCs %>% 
             dplyr::group_by(CategoryID, CategoryTerm) %>% 
             dplyr::summarise(meanlog2FC = mean(log2FC)) %>% dplyr::ungroup() %>% 
@@ -169,9 +182,11 @@ roastMSigDB <- function(data,
                                            by = "CategoryID")
          ))
 
+      roastResult <- list(roastOutput = roast_out3,
+                          GenesPerTerm = genesintermread,
+                          log2FCs = log2FCs)
       
-      
-      return(roast_out)
+      return(roastResult)
       
 }
                         

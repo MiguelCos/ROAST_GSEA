@@ -1,17 +1,5 @@
 ### ROAST - Reactome function ----
 
-data = input_roast
-geneIDtype = "SYMBOL"
-organism = "org.Hs.eg.db"
-species = "Homo sapiens"
-design = sample_idesign_cptac_ccrcc_reduced
-n_rotations = 999
-minSetSize = 15
-maxSetSize = 250
-pvalueCutoff = 0.05
-exclusionList = TRUE
-
-
 roastReactome <- function(data, geneIDtype = "SYMBOL", 
                           organism = "org.Hs.eg.db", 
                           design,

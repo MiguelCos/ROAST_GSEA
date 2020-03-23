@@ -1,14 +1,4 @@
 ### roast function ----  
-data = input_roast
-geneIDtype = "SYMBOL"
-orgDB = "org.Hs.eg.db"
-organism = "hsa" # here the sintax should correspond with the  sintax
-design = sample_idesign_cptac_ccrcc_reduced
-n_rotations = 999
-minSetSize = 20
-maxSetSize = 150
-pvalueCutoff = 0.05
-exclusionList = TRUE
 
 
 roast <- function(data,
